@@ -1,9 +1,11 @@
 import AppKit
+import Observation
 
 /// Holds the list of dropped images and handles incoming drops.
 @MainActor
-final class DropModel: ObservableObject {
-    @Published var items: [DroppedImage] = []
+@Observable
+final class DropModel {
+    var items: [DroppedImage] = []
 
     /// Loads dropped file URLs, keeping only supported images. Loading happens off the
     /// main thread; each successfully loaded image is appended on the main actor.

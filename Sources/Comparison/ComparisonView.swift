@@ -1,108 +1,58 @@
 import AppKit
 import SwiftUI
 
-/// A horizontal guide line placed across the comparison strip.
-struct Ruler: Identifiable {
-    let id = UUID()
-    var y: CGFloat
-}
-
-/// A two-point measurement drawn across the comparison strip.
-struct Measurement: Identifiable {
-    let id = UUID()
-    var a: CGPoint
-    var b: CGPoint
-}
-
 /// Compares images side by side, flush against each other with only a 1px red divider between them.
 /// Supports draggable horizontal rulers and two-click pixel measurements.
+/// All state and behaviour live in `ComparisonViewModel`.
 struct ComparisonView: View {
-    @StateObject private var model = DropModel()
-    @State private var rulers: [Ruler] = []
-    @State private var stripHeight: CGFloat = 0
-
-    /// The image currently under a reorder drag, highlighted as the drop slot.
-    @State private var dropTargetID: DroppedImage.ID?
-
-    // Measure tool state.
-    @State private var measuring = false
-    @State private var measurements: [Measurement] = []
-    @State private var pendingStart: CGPoint?
-    @State private var previewPoint: CGPoint?
+    @State private var viewModel = ComparisonViewModel()
 
     var body: some View {
         HStack(spacing: 0) {
             // Left — the drop / select area and tool commands
-            VStack(spacing: 12) {
-                DropZoneView(model: model)
-
+            ToolSidebar(model: viewModel.images) {
                 HStack(spacing: 8) {
-                    Button {
-                        rulers.append(Ruler(y: max(0, stripHeight / 2)))
-                    } label: {
-                        Label("Add Ruler", systemImage: "ruler")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .disabled(model.items.isEmpty)
-                    .hoverHelp("Adds a cyan horizontal guide line. Drag it up or down, or click the red ✕ to delete it.")
+                    ComparisonToolView(
+                        title: "Add Ruler",
+                        icon: "ruler",
+                        help: "Adds a cyan horizontal guide line. Drag it up or down, or click the red ✕ to delete it.",
+                        action: viewModel.addRuler
+                    )
+                    .disabled(!viewModel.hasImages)
 
-                    Button {
-                        measuring.toggle()
-                        pendingStart = nil
-                        previewPoint = nil
-                    } label: {
-                        Label("Measure", systemImage: "arrow.up.left.and.arrow.down.right")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .tint(measuring ? .accentColor : .secondary)
-                    .disabled(model.items.isEmpty)
-                    .hoverHelp("Click two points to draw a dashed line showing the distance between them in pixels. Toggle off when done.")
+                    ComparisonToolView(
+                        title: "Measure",
+                        icon: "arrow.up.left.and.arrow.down.right",
+                        help: "Click two points to draw a dashed line showing the distance between them in pixels. Toggle off when done.",
+                        isActive: viewModel.isMeasuring,
+                        action: viewModel.toggleMeasuring
+                    )
+                    .disabled(!viewModel.hasImages)
                 }
 
-                if !rulers.isEmpty || !measurements.isEmpty {
-                    Button("Clear Overlay") {
-                        rulers.removeAll()
-                        measurements.removeAll()
-                        pendingStart = nil
-                        previewPoint = nil
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
+                if viewModel.hasOverlay {
+                    Button("Clear Overlay", action: viewModel.clearOverlay)
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
                 }
 
-                if !model.items.isEmpty {
-                    Button("Clear Workspace", role: .destructive) {
-                        model.clear()
-                        rulers.removeAll()
-                        measurements.removeAll()
-                        pendingStart = nil
-                        previewPoint = nil
-                        measuring = false
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
+                if viewModel.hasImages {
+                    Button("Clear Workspace", role: .destructive, action: viewModel.clearWorkspace)
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
                 }
-                Spacer()
             }
-            .padding()
-            .frame(width: 160)
 
             Divider()
 
             // Right — the flush comparison strip with overlays
             Group {
-                if model.items.isEmpty {
+                if viewModel.hasImages {
+                    comparisonStrip
+                } else {
                     Text("Drop or select images to compare")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    comparisonStrip
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -114,7 +64,7 @@ struct ComparisonView: View {
         GeometryReader { geometry in
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
-                    ForEach(Array(model.items.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(viewModel.images.items.enumerated()), id: \.element.id) { index, item in
                         if index > 0 {
                             Rectangle()
                                 .fill(Color.red)
@@ -126,13 +76,13 @@ struct ComparisonView: View {
                             .frame(height: geometry.size.height)
                             .overlay(alignment: .topLeading) {
                                 ImageControls(item: item) {
-                                    model.remove(id: item.id)
+                                    viewModel.removeImage(id: item.id)
                                 }
                                 .padding(6)
                             }
                             // Drop target: the dragged image takes over this image's slot.
                             .overlay(alignment: .leading) {
-                                if dropTargetID == item.id {
+                                if viewModel.dropTargetID == item.id {
                                     Rectangle()
                                         .fill(Color.accentColor)
                                         .frame(width: 3)
@@ -140,15 +90,15 @@ struct ComparisonView: View {
                                 }
                             }
                             .dropDestination(for: String.self) { identifiers, _ in
-                                dropTargetID = nil
+                                viewModel.dropTargetID = nil
                                 guard let dragged = identifiers.first,
                                       let id = UUID(uuidString: dragged) else { return false }
-                                return model.move(id: id, toSlotOf: item.id)
+                                return viewModel.moveImage(id: id, toSlotOf: item.id)
                             } isTargeted: { targeted in
                                 if targeted {
-                                    dropTargetID = item.id
-                                } else if dropTargetID == item.id {
-                                    dropTargetID = nil
+                                    viewModel.dropTargetID = item.id
+                                } else if viewModel.dropTargetID == item.id {
+                                    viewModel.dropTargetID = nil
                                 }
                             }
                     }
@@ -156,9 +106,9 @@ struct ComparisonView: View {
             }
             // Rulers
             .overlay(alignment: .top) {
-                ForEach($rulers) { $ruler in
+                ForEach($viewModel.rulers) { $ruler in
                     RulerLine(ruler: $ruler, maxY: geometry.size.height) {
-                        rulers.removeAll { $0.id == ruler.id }
+                        viewModel.deleteRuler(id: ruler.id)
                     }
                     .offset(y: ruler.y)
                 }
@@ -167,42 +117,41 @@ struct ComparisonView: View {
             .overlay {
                 ZStack(alignment: .topLeading) {
                     // Non-interactive dashed lines.
-                    ForEach(measurements) { measurement in
+                    ForEach(viewModel.measurements) { measurement in
                         MeasureLine(a: measurement.a, b: measurement.b)
                     }
-                    if measuring, let start = pendingStart, let preview = previewPoint {
-                        MeasureLine(a: start, b: preview)
-                        MeasureLabel(a: start, b: preview)
+                    if let preview = viewModel.measurePreview {
+                        MeasureLine(a: preview.a, b: preview.b)
+                        MeasureLabel(a: preview.a, b: preview.b)
                     }
 
                     // Distance labels; each ✕ has its own tap gesture that (as a descendant)
                     // takes priority over the container's measure tap below.
-                    ForEach(measurements) { measurement in
+                    ForEach(viewModel.measurements) { measurement in
                         MeasureLabel(a: measurement.a, b: measurement.b) {
-                            measurements.removeAll { $0.id == measurement.id }
+                            viewModel.deleteMeasurement(id: measurement.id)
                         }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // Measure interaction lives on the container, active only while measuring.
-                .applyIf(measuring) { view in
+                .applyIf(viewModel.isMeasuring) { view in
                     view
                         .contentShape(Rectangle())
                         .onContinuousHover { phase in
-                            if case .active(let location) = phase { previewPoint = location }
+                            if case .active(let location) = phase {
+                                viewModel.updateMeasurePreview(to: location)
+                            }
                         }
                         .onTapGesture(count: 1, coordinateSpace: .local) { location in
-                            if pendingStart == nil {
-                                pendingStart = location
-                            } else if let start = pendingStart {
-                                measurements.append(Measurement(a: start, b: location))
-                                pendingStart = nil
-                            }
+                            viewModel.measureTap(at: location)
                         }
                 }
             }
-            .onAppear { stripHeight = geometry.size.height }
-            .onChange(of: geometry.size.height) { _, newHeight in stripHeight = newHeight }
+            .onAppear { viewModel.stripHeight = geometry.size.height }
+            .onChange(of: geometry.size.height) { _, newHeight in
+                viewModel.stripHeight = newHeight
+            }
         }
     }
 }
@@ -362,39 +311,5 @@ private extension View {
     @ViewBuilder
     func applyIf(_ condition: Bool, _ transform: (Self) -> some View) -> some View {
         if condition { transform(self) } else { self }
-    }
-}
-
-/// Shows a helper popover after hovering over a view for 3 seconds.
-private struct HoverHelp: ViewModifier {
-    let text: String
-    @State private var showHelp = false
-    @State private var task: Task<Void, Never>?
-
-    func body(content: Content) -> some View {
-        content
-            .onHover { inside in
-                task?.cancel()
-                if inside {
-                    task = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 3_000_000_000)
-                        if !Task.isCancelled { showHelp = true }
-                    }
-                } else {
-                    showHelp = false
-                }
-            }
-            .popover(isPresented: $showHelp, arrowEdge: .trailing) {
-                Text(text)
-                    .font(.callout)
-                    .padding(12)
-                    .frame(maxWidth: 260)
-            }
-    }
-}
-
-private extension View {
-    func hoverHelp(_ text: String) -> some View {
-        modifier(HoverHelp(text: text))
     }
 }

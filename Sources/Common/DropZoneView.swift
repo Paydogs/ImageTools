@@ -2,9 +2,10 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A small 100×100 dashed drop target that accepts PNG / JPG images, or opens a file picker when clicked.
+/// A small dashed drop target that accepts PNG / JPG images, or opens a file picker when clicked.
+/// Fills the width it is given so it fits whatever column hosts it.
 struct DropZoneView: View {
-    @ObservedObject var model: DropModel
+    let model: DropModel
     @State private var isTargeted = false
 
     var body: some View {
@@ -16,7 +17,8 @@ struct DropZoneView: View {
                 .multilineTextAlignment(.center)
         }
         .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
-        .frame(width: 100, height: 100)
+        .frame(maxWidth: .infinity)
+        .frame(height: 100)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(isTargeted ? Color.accentColor.opacity(0.1) : Color.clear)

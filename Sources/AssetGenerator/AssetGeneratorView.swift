@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-struct ContentView: View {
-    @StateObject private var model = DropModel()
+struct AssetGeneratorView: View {
+    @State private var model = DropModel()
     @State private var selectedID: DroppedImage.ID?
     @State private var destination: URL?
     @AppStorage("lastDestinationPath") private var lastDestinationPath: String = ""
@@ -15,8 +15,7 @@ struct ContentView: View {
     var body: some View {
         HSplitView {
             // Part 1 — the drop area
-            VStack(spacing: 12) {
-                DropZoneView(model: model)
+            ToolSidebar(model: model) {
                 if !model.items.isEmpty {
                     Button("Clear") {
                         model.clear()
@@ -24,10 +23,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(.link)
                 }
-                Spacer()
             }
-            .padding()
-            .frame(minWidth: 120, idealWidth: 140, maxWidth: 220, maxHeight: .infinity)
 
             // Part 2 — dropped image previews with their metadata (tap to select)
             Group {
@@ -89,5 +85,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    AssetGeneratorView()
 }

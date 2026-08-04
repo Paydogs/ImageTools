@@ -8,13 +8,13 @@ let project = Project(
             destinations: .macOS,
             product: .app,
             bundleId: "net.kishonti.ImageTools",
-            deploymentTargets: .macOS("14.0"),
+            deploymentTargets: .macOS("15.0"),
             infoPlist: .extendingDefault(
                 with: [
                     "CFBundleName": "ImageTools",
                     "CFBundleDisplayName": "ImageTools",
                     "CFBundleIconName": "AppIcon",
-                    "LSMinimumSystemVersion": "14.0",
+                    "LSMinimumSystemVersion": "15.0",
                     "NSHumanReadableCopyright": "",
                 ]
             ),

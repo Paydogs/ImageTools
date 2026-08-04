@@ -5,21 +5,11 @@ struct ImageToolsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        // The launcher panel shown at startup.
-        Window("ImageTools", id: "launcher") {
-            LauncherView()
+        // A single window holding every tool as a tab; AppDelegate sizes it to the screen at launch.
+        Window("ImageTools", id: "main") {
+            ImageToolMainView()
         }
-        .windowResizability(.contentSize)
-
-        // Value-based window groups: do not open at launch, only when requested from the launcher.
-        WindowGroup("Image Asset Generator", id: Tool.imageAssetGenerator.windowID, for: String.self) { _ in
-            ContentView()
-        }
-        .defaultSize(width: 1000, height: 560)
-
-        WindowGroup("Comparison", id: Tool.comparison.windowID, for: String.self) { _ in
-            ComparisonView()
-        }
-        .defaultSize(width: 1000, height: 620)
+        .defaultSize(width: 1400, height: 900)
+        .windowResizability(.contentMinSize)
     }
 }
