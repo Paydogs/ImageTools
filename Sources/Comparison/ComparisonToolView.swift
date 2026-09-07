@@ -6,6 +6,10 @@ struct ComparisonToolView: View {
     /// Names the tool for accessibility; the button itself shows only the icon.
     let title: String
     let icon: String
+    /// Single key that triggers the tool, with no modifier.
+    let key: KeyEquivalent
+    /// Turns the icon so one glyph can serve both orientations of a tool.
+    var iconRotation: Angle = .zero
     /// Explains the tool in a popover after a short hover.
     let help: String
     /// Non-nil only for tools that toggle a mode, which tint themselves while active.
@@ -16,8 +20,10 @@ struct ComparisonToolView: View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .labelStyle(.iconOnly)
+                .rotationEffect(iconRotation)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .keyboardShortcut(key, modifiers: [])
         .buttonStyle(.bordered)
         .buttonBorderShape(.roundedRectangle)
         .frame(maxWidth: 64)
@@ -29,7 +35,7 @@ struct ComparisonToolView: View {
                     .strokeBorder(Color.accentColor, lineWidth: 2)
             }
         }
-        .hoverHelp(help)
+        .hoverHelp("\(help)\n\nShortcut: \(String(key.character).uppercased())")
     }
 
     /// Modal tools go accented while active and dim while idle; plain tools keep the default tint.
@@ -78,7 +84,18 @@ private extension View {
         ComparisonToolView(
             title: "Add Ruler",
             icon: "ruler",
+            key: "h",
             help: "Adds a cyan horizontal guide line. Drag it up or down, or click the red ✕ to delete it.",
+            action: { }
+        )
+        .padding(24)
+
+        ComparisonToolView(
+            title: "Add Vertical Ruler",
+            icon: "ruler",
+            key: "v",
+            iconRotation: .degrees(90),
+            help: "Adds a cyan vertical guide line. Drag it left or right, or click the red ✕ to delete it.",
             action: { }
         )
         .padding(24)
@@ -86,6 +103,7 @@ private extension View {
         ComparisonToolView(
             title: "Add Ruler",
             icon: "ruler",
+            key: "h",
             help: "Adds a cyan horizontal guide line. Drag it up or down, or click the red ✕ to delete it.",
             isActive: true,
             action: { }
